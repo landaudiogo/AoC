@@ -1,13 +1,11 @@
-use std::{
-    collections::{HashMap, HashSet},
-    io, iter,
-};
+use std::collections::{HashMap, HashSet};
+use std::io::BufRead;
 
-fn main() {
+pub fn run<B: BufRead>(mut buf: B) -> u64 {
     let mut line = String::new();
     let mut left = HashSet::new();
     let mut right = HashMap::new();
-    while let Ok(len) = io::stdin().read_line(&mut line) {
+    while let Ok(len) = buf.read_line(&mut line) {
         if len == 0 {
             break;
         }
@@ -26,5 +24,5 @@ fn main() {
         .map(|elem| right.get_mut(&elem).map_or(0, |count| *count * elem))
         .reduce(|a, b| a + b);
 
-    println!("{:?}", sum);
+    sum.unwrap()
 }

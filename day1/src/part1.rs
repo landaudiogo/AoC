@@ -1,10 +1,10 @@
-use std::{io, iter};
+use std::{io::BufRead, iter};
 
-fn main() {
+pub fn run<B: BufRead>(mut buf: B) -> u64 {
     let mut line = String::new();
     let mut left = Vec::new();
     let mut right = Vec::new();
-    while let Ok(len) = io::stdin().read_line(&mut line) {
+    while let Ok(len) = buf.read_line(&mut line) {
         if len == 0 {
             break;
         }
@@ -17,8 +17,8 @@ fn main() {
     left.sort();
     right.sort();
     let sum = iter::zip(left, right)
-        .map(|(a, b)| (a - b).abs())
+        .map(|(a, b)| (a - b).abs() as u64)
         .reduce(|a, b| a + b);
 
-    println!("{:?}", sum);
+    sum.unwrap()
 }
