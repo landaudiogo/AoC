@@ -60,6 +60,49 @@ fn fix_triplet(
     None
 }
 
+fn dampen_report(mut diffs: VecDeque<i64>) -> bool {
+    let mut is_first = true;
+    let mut trend = None;
+    let mut is_valid = true;
+    let mut fixed = false;
+
+    while let (Some(first), Some(second)) = (diffs.pop_front(), diffs.pop_front()) {
+        if validate_diff_pair(first, second, &mut trend) {
+            diffs.push_front(second);
+            is_first = false;
+            continue;
+        }
+
+        if fixed {
+            is_valid = false;
+            break;
+        }
+
+        if let Some(third) = diffs.pop_front() {
+            let pair = fix_triplet(first, second, third, is_first, diffs.len() == 0, &mut trend);
+
+            if pair.is_none() {
+                is_valid = false;
+                break;
+            }
+
+            pair.map(|pair| diffs.push_front(pair.1));
+        } else {
+            let res = fix_pair(first, second, trend);
+
+            if res.is_none() {
+                is_valid = false;
+                break;
+            }
+        }
+
+        fixed = true;
+        is_first = false;
+    }
+
+    is_valid
+}
+
 pub fn run<B: BufRead>(mut buf: B) -> u64 {
     let mut line = String::new();
     let mut sum = 0;
@@ -71,7 +114,7 @@ pub fn run<B: BufRead>(mut buf: B) -> u64 {
 
         let mut levels = line.split_whitespace();
         let mut prev = levels.next().unwrap().parse::<i64>().unwrap();
-        let mut diffs: VecDeque<_> = levels
+        let diffs: VecDeque<_> = levels
             .into_iter()
             .map(|level| {
                 let curr = level.parse::<i64>().unwrap();
@@ -96,44 +139,7 @@ pub fn run<B: BufRead>(mut buf: B) -> u64 {
             _ => {}
         }
 
-        let mut is_first = true;
-        let mut trend = None;
-        let mut is_valid = true;
-        let mut fixed = false;
-
-        while let (Some(first), Some(second)) = (diffs.pop_front(), diffs.pop_front()) {
-            if validate_diff_pair(first, second, &mut trend) {
-                diffs.push_front(second);
-            } else {
-                if fixed {
-                    is_valid = false;
-                    break;
-                }
-
-                if let Some(third) = diffs.pop_front() {
-                    let pair =
-                        fix_triplet(first, second, third, is_first, diffs.len() == 0, &mut trend);
-                    if let Some(pair) = pair {
-                        diffs.push_front(pair.1)
-                    } else {
-                        is_valid = false;
-                        break;
-                    }
-                } else {
-                    let res = fix_pair(first, second, trend);
-                    if res.is_none() {
-                        is_valid = false;
-                        break;
-                    }
-                }
-
-                fixed = true;
-            }
-
-            is_first = false;
-        }
-
-        if is_valid {
+        if dampen_report(diffs) {
             sum += 1;
         }
 
