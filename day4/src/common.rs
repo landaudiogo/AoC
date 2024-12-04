@@ -1,8 +1,4 @@
-use std::{
-    char,
-    collections::{HashMap, HashSet},
-    io::BufRead,
-};
+use std::{char, collections::HashSet, io::BufRead};
 
 pub struct Matrix {
     pub inner: Vec<Vec<char>>,
@@ -54,14 +50,28 @@ impl Matrix {
     }
 }
 
-pub fn check_pos_bounds(matrix: &Matrix, pos: (i64, i64)) -> bool {
-    pos.0 >= 0 && pos.0 < matrix.height as i64 && pos.1 >= 0 && pos.1 < matrix.width as i64
-}
-
-pub fn convert_pos_usize_to_i64(pos: (usize, usize)) -> (i64, i64) {
+fn convert_pos_usize_to_i64(pos: (usize, usize)) -> (i64, i64) {
     (pos.0 as i64, pos.1 as i64)
 }
 
-pub fn convert_pos_i64_to_usize(pos: (i64, i64)) -> (usize, usize) {
+fn convert_pos_i64_to_usize(pos: (i64, i64)) -> (usize, usize) {
     (pos.0 as usize, pos.1 as usize)
+}
+
+pub fn find_mas(matrix: &mut Matrix, start: (usize, usize), direction: (i64, i64)) -> bool {
+    for (i, c) in ['M', 'A', 'S'].into_iter().enumerate() {
+        let offset = (i as i64 * direction.0, i as i64 * direction.1);
+        let pos = match matrix.get_relative(start, offset) {
+            Ok(pos) => pos,
+            Err(_) => return false,
+        };
+
+        if matrix.inner[pos.0][pos.1] != c {
+            return false;
+        }
+    }
+
+    matrix.found.insert((start, direction));
+
+    return true;
 }

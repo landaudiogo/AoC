@@ -1,4 +1,4 @@
-use crate::common::{self, convert_pos_i64_to_usize, Matrix};
+use crate::common::{self, Matrix};
 use std::{collections::HashMap, io::BufRead};
 
 struct Complement {
@@ -67,53 +67,16 @@ fn find_xmas(matrix: &mut Matrix, start: (usize, usize)) -> u64 {
         if let Some(_) = matrix.found.get(&(start, *direction)) {
             continue;
         }
-        if _find_mas(matrix, start, *direction) {
+        if common::find_mas(matrix, start, *direction) {
             for complement in complements.get(direction).unwrap() {
                 if let Ok(complement_pos) = matrix.get_relative(start, complement.offset) {
-                    sum += _find_mas(matrix, complement_pos, complement.direction) as u64;
+                    sum += common::find_mas(matrix, complement_pos, complement.direction) as u64;
                 }
             }
         }
     }
 
     sum
-}
-
-pub fn _find_mas(matrix: &mut Matrix, start: (usize, usize), direction: (i64, i64)) -> bool {
-    let start = common::convert_pos_usize_to_i64(start);
-    for i in 0..3 {
-        let pos = (start.0 + i * direction.0, start.1 + i * direction.1);
-        if !common::check_pos_bounds(&matrix, pos) {
-            return false;
-        }
-        let pos = common::convert_pos_i64_to_usize(pos);
-
-        match i {
-            0 => {
-                if !(matrix.inner[pos.0][pos.1] == 'M') {
-                    return false;
-                }
-            }
-            1 => {
-                if !(matrix.inner[pos.0][pos.1] == 'A') {
-                    return false;
-                }
-            }
-            2 => {
-                if !(matrix.inner[pos.0][pos.1] == 'S') {
-                    return false;
-                }
-            }
-            _ => {
-                panic! {}
-            }
-        }
-    }
-
-    matrix
-        .found
-        .insert((convert_pos_i64_to_usize(start), direction));
-    return true;
 }
 
 pub fn run<B: BufRead>(buf: B) -> u64 {
