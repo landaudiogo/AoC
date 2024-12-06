@@ -4,13 +4,9 @@ use std::{
 };
 
 use petgraph::{
-    algo::toposort,
     graph::DiGraph,
-    visit::{
-        EdgeRef, IntoEdgeReferences, IntoNeighborsDirected, IntoNodeIdentifiers,
-        IntoNodeReferences, NodeFiltered,
-    },
-    Direction, Graph,
+    visit::{IntoNeighborsDirected, IntoNodeReferences, NodeFiltered},
+    Direction,
 };
 
 use crate::common;
@@ -31,27 +27,10 @@ fn fix_sequence(dig: &DiGraph<i64, i64>, sequence: &Vec<i64>) -> i64 {
 }
 
 pub fn run<B: BufRead>(mut buf: B) -> i64 {
-    let mut dig = DiGraph::<i64, i64>::new();
-    let mut line = String::new();
     let mut node_index = HashMap::new();
+    let dig = common::create_graph(&mut buf, &mut node_index);
 
-    while let Ok(len) = buf.read_line(&mut line) {
-        let rule = line.trim();
-        if rule.len() == 0 || len == 0 {
-            break;
-        }
-
-        let mut elements = rule.split("|");
-        let from = elements.next().unwrap().parse::<i64>().unwrap();
-        let to = elements.next().unwrap().parse::<i64>().unwrap();
-
-        let from = *node_index.entry(from).or_insert_with(|| dig.add_node(from));
-        let to = *node_index.entry(to).or_insert_with(|| dig.add_node(to));
-        dig.add_edge(from, to, 1);
-
-        line.truncate(0)
-    }
-
+    let mut line = String::new();
     let mut sum = 0;
     while let Ok(len) = buf.read_line(&mut line) {
         if len == 0 {

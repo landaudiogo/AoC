@@ -3,19 +3,9 @@
 version = 3
 
 [[package]]
-name = "daggy"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91a9304e55e9d601a39ae4deaba85406d5c0980e106f65afcf0460e9af1e7602"
-dependencies = [
- "petgraph",
-]
-
-[[package]]
 name = "day5"
 version = "0.1.0"
 dependencies = [
- "daggy",
  "petgraph",
 ]
 

@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    io::BufRead,
+};
 
 use petgraph::{
     graph::{DiGraph, NodeIndex},
@@ -13,32 +16,43 @@ pub fn check_sequence(
     let seq_set: HashSet<i64> = HashSet::from_iter(sequence.iter().map(|val| *val));
     let filtered = NodeFiltered::from_fn(dig, |node| seq_set.get(&dig[node]).is_some());
 
-    for (i, curr) in sequence.iter().enumerate() {
-        let bigger_list = &sequence[i + 1..];
-        if bigger_list.len() == 0 {
-            break;
-        }
-
-        for bigger in bigger_list {
+    for (i, smaller) in sequence.iter().enumerate() {
+        for bigger in &sequence[i + 1..] {
             let bigger = node_index.get(bigger).unwrap();
-            let mut visited = HashSet::new();
             let mut dfs = Dfs::new(&filtered, *bigger);
             while let Some(node) = dfs.next(&filtered) {
-                if seq_set.get(&dig[node]).is_none() {
-                    continue;
-                }
-
-                if visited.get(&dig[node]).is_some() {
-                    continue;
-                }
-
-                if dig[node] == *curr {
+                if dig[node] == *smaller {
                     return None;
                 }
-                visited.insert(&dig[node]);
             }
         }
     }
 
     Some(sequence[sequence.len() / 2])
+}
+
+pub fn create_graph<B: BufRead>(
+    mut buf: B,
+    node_index: &mut HashMap<i64, NodeIndex>,
+) -> DiGraph<i64, i64> {
+    let mut line = String::new();
+    let mut dig = DiGraph::<i64, i64>::new();
+
+    while let Ok(len) = buf.read_line(&mut line) {
+        let rule = line.trim();
+        if rule.len() == 0 || len == 0 {
+            break;
+        }
+
+        let mut elements = rule.split("|");
+        let from = elements.next().unwrap().parse::<i64>().unwrap();
+        let to = elements.next().unwrap().parse::<i64>().unwrap();
+
+        let from = *node_index.entry(from).or_insert_with(|| dig.add_node(from));
+        let to = *node_index.entry(to).or_insert_with(|| dig.add_node(to));
+        dig.add_edge(from, to, 1);
+
+        line.truncate(0)
+    }
+    dig
 }
