@@ -1,9 +1,7 @@
-use std::{collections::HashSet, io::BufRead};
-
-enum StepType {
-    New(Position),
-    Seen,
-}
+use std::{
+    collections::{HashMap, HashSet},
+    io::BufRead,
+};
 
 #[derive(Debug)]
 pub enum Square {
@@ -51,8 +49,8 @@ pub struct Matrix {
     pub width: usize,
     pub position: Position,
     pub visited: HashSet<(usize, usize)>,
-    pub seen_states: HashSet<Position>,
     pub obstructions: HashSet<(usize, usize)>,
+    pub jump_table: HashMap<Position, (usize, usize)>,
 }
 
 impl Matrix {
@@ -93,20 +91,14 @@ impl Matrix {
             width,
             position: position.unwrap(),
             visited,
-            seen_states: HashSet::new(),
             obstructions: HashSet::new(),
+            jump_table: HashMap::new(),
         }
     }
 
-    pub fn step_with_loop(&mut self) -> Option<bool> {
-        let next = Self::get_relative(
-            self.position.coordinates,
-            self.position.orientation,
-            self.height,
-            self.width,
-        );
+    pub fn step_try_loop(&mut self) -> Option<bool> {
         let mut is_loop = false;
-        if let Ok(next) = next {
+        if let Ok(next) = self.get_relative(self.position.coordinates, self.position.orientation) {
             match self.inner[next.0][next.1] {
                 Square::Clear => {
                     if self.obstructions.get(&next).is_none() {
@@ -131,63 +123,49 @@ impl Matrix {
     pub fn attempt_loop(&mut self, block_position: (usize, usize)) -> bool {
         self.inner[block_position.0][block_position.1] = Square::Blocked;
         let start_position = self.position.clone();
-        let mut seen_states = HashSet::new();
         let mut res = false;
-        let position = &mut self.position;
+        let mut seen_states = HashSet::new();
 
-        while let Some(position) = Self::step(
-            &self.inner,
-            position,
-            &mut self.visited,
-            self.height,
-            self.width,
-        ) {
-            if seen_states.get(position).is_some() {
+        while let Some(_) = self.step() {
+            if seen_states.get(&self.position).is_some() {
                 res = true;
                 break;
             }
 
-            seen_states.insert(position.clone());
+            seen_states.insert(self.position.clone());
         }
         self.position = start_position;
         self.inner[block_position.0][block_position.1] = Square::Clear;
         res
     }
 
-    pub fn step<'a, 'b>(
-        inner: &Vec<Vec<Square>>,
-        position: &'a mut Position,
-        visited: &'b mut HashSet<(usize, usize)>,
-        height: usize,
-        width: usize,
-    ) -> Option<&'a mut Position> {
-        let next = Self::get_relative(position.coordinates, position.orientation, height, width);
+    pub fn step(&mut self) -> Option<&Position> {
+        let next = self.get_relative(self.position.coordinates, self.position.orientation);
         if let Ok(next) = next {
-            match inner[next.0][next.1] {
+            match self.inner[next.0][next.1] {
                 Square::Clear => {
-                    visited.insert(next);
-                    position.coordinates = next;
+                    self.visited.insert(next);
+                    self.position.coordinates = next;
                 }
                 Square::Blocked => {
-                    let o = position.orientation;
+                    let o = self.position.orientation;
                     // multiply orientation by 90 degree rotation matrix
-                    position.orientation = (o.0 * 0 + o.1 * 1, o.0 * -1 + o.1 * 0);
+                    self.position.orientation = (o.0 * 0 + o.1 * 1, o.0 * -1 + o.1 * 0);
                 }
             }
-            return Some(position);
+            return Some(&self.position);
         }
         None
     }
 
     pub fn get_relative(
+        &self,
         current: (usize, usize),
         offset: (i64, i64),
-        height: usize,
-        width: usize,
     ) -> Result<(usize, usize), ()> {
         let current = convert_pos_usize_to_i64(current);
         let pos = (current.0 + offset.0, current.1 + offset.1);
-        if !Self::valid_position(pos, height, width) {
+        if !Self::valid_position(pos, self.height, self.width) {
             return Err(());
         }
 
