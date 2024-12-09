@@ -1,13 +1,13 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::BufRead,
-    ops::Bound::{Excluded, Included, Unbounded},
+    ops::Bound::{Included, Unbounded},
 };
 
 pub fn run<B: BufRead>(mut buf: B) -> u64 {
     let mut line = String::new();
     let mut free_map = BTreeMap::new();
-    let mut file_map = BTreeMap::new();
+    let mut file_map = Vec::new();
     let mut id = 0;
     let mut address = 0;
     buf.read_line(&mut line).unwrap();
@@ -16,7 +16,7 @@ pub fn run<B: BufRead>(mut buf: B) -> u64 {
         let contiguity = c.to_digit(10).unwrap() as u64;
         if i % 2 == 0 {
             if contiguity > 0 {
-                file_map.insert(id, (address, contiguity));
+                file_map.push((id, (address, contiguity)));
                 id += 1;
                 address += contiguity;
             }
