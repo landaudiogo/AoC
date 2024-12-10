@@ -8,7 +8,7 @@ pub fn run<B: BufRead>(buf: B) -> u64 {
     for i in 0..matrix.height {
         for j in 0..matrix.width {
             if matrix.inner[i][j] == 0 {
-                hikes += matrix.find_trailheads((i, j)).len() as u64;
+                hikes += matrix.find_hikes((i, j));
             }
         }
     }

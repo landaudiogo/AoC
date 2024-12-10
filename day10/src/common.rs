@@ -46,7 +46,7 @@ impl Matrix {
         Ok(convert_pos_i64_to_usize(pos))
     }
 
-    pub fn find_hikes(&self, pos: (usize, usize)) -> HashSet<(usize, usize)> {
+    pub fn find_trailheads(&self, pos: (usize, usize)) -> HashSet<(usize, usize)> {
         if self.inner[pos.0][pos.1] == 9 {
             return HashSet::from([pos]);
         }
@@ -57,7 +57,26 @@ impl Matrix {
             let next = self.get_relative(pos, direction);
             if let Ok(next) = next {
                 if self.valid_hike_step(pos, next) {
-                    hikes.extend(self.find_hikes(next));
+                    hikes.extend(self.find_trailheads(next));
+                }
+            }
+        }
+
+        hikes
+    }
+
+    pub fn find_hikes(&self, pos: (usize, usize)) -> u64 {
+        if self.inner[pos.0][pos.1] == 9 {
+            return 1;
+        }
+
+        let mut hikes = 0;
+        let directions = vec![(0, 1), (0, -1), (1, 0), (-1, 0)];
+        for direction in directions {
+            let next = self.get_relative(pos, direction);
+            if let Ok(next) = next {
+                if self.valid_hike_step(pos, next) {
+                    hikes += self.find_hikes(next);
                 }
             }
         }
