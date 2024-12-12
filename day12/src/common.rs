@@ -50,6 +50,29 @@ impl Matrix {
         neighbours
     }
 
+    pub fn get_fences(&self, pos: (usize, usize), c: char) -> Vec<(Orientation, (usize, usize))> {
+        let mut fences = Vec::new();
+        let directions = [(0, 1), (0, -1), (1, 0), (-1, 0)];
+        for direction in directions {
+            let orientation = Orientation::try_from(direction).unwrap();
+            let fence_x = if direction.0 == 1 { 1 } else { 0 };
+            let fence_y = if direction.1 == 1 { 1 } else { 0 };
+            if let Ok(n) = self.get_relative(pos, direction) {
+                if self.inner[n.0][n.1] != c {
+                    let fence = (orientation, (pos.0 + fence_x, pos.1 + fence_y));
+                    // println!("=== {} {:?} {:?}", c, pos, fence);
+                    fences.push(fence);
+                }
+            } else {
+                let fence = (orientation, (pos.0 + fence_x, pos.1 + fence_y));
+                // println!("=== {} {:?} {:?}", c, pos, fence);
+                fences.push(fence);
+            }
+        }
+
+        fences
+    }
+
     pub fn get_relative(
         &self,
         current: (usize, usize),
@@ -77,10 +100,60 @@ fn convert_pos_i64_to_usize(pos: (i64, i64)) -> (usize, usize) {
     (pos.0 as usize, pos.1 as usize)
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug)]
 pub struct Region {
     pub area: u64,
     pub perimeter: u64,
+    pub fences: Vec<(Orientation, (usize, usize))>,
+}
+
+impl Region {
+    pub fn count_sides(&mut self) -> u64 {
+        let mut sides = 0;
+        for orientation in [Orientation::Up, Orientation::Down] {
+            let mut horizontal: Vec<(usize, usize)> = self
+                .fences
+                .iter()
+                .filter(|fence| fence.0 == orientation)
+                .map(|fence| fence.1)
+                .collect();
+            horizontal.sort();
+            let mut prev: Option<(usize, usize)> = None;
+            for fence in horizontal {
+                if let Some(prev) = prev {
+                    if !(prev.0 == fence.0 && fence.1 == prev.1 + 1) {
+                        sides += 1;
+                    }
+                } else {
+                    sides += 1;
+                }
+                prev = Some(fence);
+            }
+        }
+
+        for orientation in [Orientation::Left, Orientation::Right] {
+            let mut vertical: Vec<(usize, usize)> = self
+                .fences
+                .iter()
+                .filter(|fence| fence.0 == orientation)
+                .map(|fence| (fence.1 .1, fence.1 .0))
+                .collect();
+            vertical.sort();
+            let mut prev: Option<(usize, usize)> = None;
+            for fence in vertical {
+                if let Some(prev) = prev {
+                    if !(prev.0 == fence.0 && fence.1 == prev.1 + 1) {
+                        sides += 1;
+                    }
+                } else {
+                    sides += 1;
+                }
+                prev = Some(fence);
+            }
+        }
+
+        sides
+    }
 }
 
 #[derive(Debug)]
@@ -109,6 +182,7 @@ impl Regions {
         let mut merged_regions = Region {
             area: 0,
             perimeter: 0,
+            fences: Vec::new(),
         };
         let next_id = self.next_id;
         self.next_id += 1;
@@ -117,6 +191,7 @@ impl Regions {
             let region = self.regions.remove(&region_id).unwrap();
             merged_regions.perimeter += region.perimeter;
             merged_regions.area += region.area;
+            merged_regions.fences.extend(region.fences);
             let plants = self.region_plants.remove(&region_id).unwrap();
             for plant in plants.iter() {
                 *self.plant_region_map.get_mut(plant).unwrap() = next_id;
@@ -141,14 +216,48 @@ impl Regions {
         region.perimeter += perimeter;
     }
 
+    pub fn add_to_region_w_fences(
+        &mut self,
+        plant: (char, (usize, usize)),
+        region_id: usize,
+        fences: Vec<(Orientation, (usize, usize))>,
+    ) {
+        self.region_plants.get_mut(&region_id).unwrap().push(plant);
+        self.plant_region_map.insert(plant, region_id);
+        let region = self.regions.get_mut(&region_id).unwrap();
+        region.area += 1;
+        region.perimeter += fences.len() as u64;
+        region.fences.extend(fences);
+    }
+
+    pub fn add_to_new_region_w_fences(
+        &mut self,
+        plant: (char, (usize, usize)),
+        fences: Vec<(Orientation, (usize, usize))>,
+    ) {
+        let next_id = self.next_id;
+        self.next_id += 1;
+        self.regions.insert(
+            next_id,
+            Region {
+                perimeter: fences.len() as u64,
+                area: 1,
+                fences,
+            },
+        );
+        self.region_plants.insert(next_id, vec![plant]);
+        self.plant_region_map.insert(plant, next_id);
+    }
+
     pub fn add_to_new_region(&mut self, plant: (char, (usize, usize)), perimeter: u64) {
         let next_id = self.next_id;
         self.next_id += 1;
         self.regions.insert(
             next_id,
             Region {
+                perimeter,
                 area: 1,
-                perimeter: perimeter,
+                fences: Vec::new(),
             },
         );
         self.region_plants.insert(next_id, vec![plant]);
@@ -164,17 +273,22 @@ impl Regions {
     }
 }
 
-enum Orientation {
-    Vertical,
-    Horizontal,
+#[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
+pub enum Orientation {
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
-impl TryFrom<(usize, usize)> for Orientation {
+impl TryFrom<(i64, i64)> for Orientation {
     type Error = ();
-    fn try_from(value: (usize, usize)) -> Result<Self, Self::Error> {
+    fn try_from(value: (i64, i64)) -> Result<Self, Self::Error> {
         match value {
-            (0, _) => Ok(Self::Horizontal),
-            (_, 0) => Ok(Self::Vertical),
+            (0, 1) => Ok(Self::Right),
+            (0, -1) => Ok(Self::Left),
+            (1, 0) => Ok(Self::Down),
+            (-1, 0) => Ok(Self::Up),
             _ => Err(()),
         }
     }

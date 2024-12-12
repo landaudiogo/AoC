@@ -9,23 +9,24 @@ pub fn run<B: BufRead>(buf: B) -> u64 {
     for i in 0..matrix.height {
         for j in 0..matrix.width {
             let plant = (matrix.inner[i][j], (i, j));
+            let fences = matrix.get_fences(plant.1, plant.0);
             let neighbours = matrix.get_neighbours(plant.1, plant.0);
             let neighbour_regions = regions.get_regions(neighbours.as_slice());
             match neighbour_regions.len() {
                 0 => {
-                    regions.add_to_new_region(plant, 4 - neighbours.len() as u64);
+                    regions.add_to_new_region_w_fences(plant, fences);
                 }
                 _ => {
                     let region = regions.merge_regions(neighbour_regions);
-                    regions.add_to_region(plant, region, 4 - neighbours.len() as u64);
+                    regions.add_to_region_w_fences(plant, region, fences);
                 }
             };
         }
     }
 
     let mut total = 0;
-    for (_, region) in regions.regions {
-        total += region.perimeter * region.area;
+    for (_, mut region) in regions.regions {
+        total += region.area * region.count_sides();
     }
     total
 }
