@@ -1,5 +1,6 @@
 use std::{fs::File, io::BufReader};
 
+mod common;
 mod part1;
 mod part2;
 
