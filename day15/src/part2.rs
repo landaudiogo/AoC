@@ -1,11 +1,31 @@
-use std::{collections::VecDeque, io::BufRead};
+use std::{
+    collections::{HashSet, VecDeque},
+    fmt::Debug,
+    io::BufRead,
+};
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 enum Square {
     Empty,
+    BoxLeft,
+    BoxRight,
     Box,
     Wall,
     Robot,
+}
+
+impl Debug for Square {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let c = match self {
+            Self::Empty => '.',
+            Self::BoxLeft => '[',
+            Self::BoxRight => ']',
+            Self::Box => 'O',
+            Self::Wall => '#',
+            Self::Robot => '@',
+        };
+        write!(f, "{}", c)
+    }
 }
 
 #[derive(Debug)]
@@ -84,21 +104,34 @@ impl Matrix {
         let offset = Offset::from(move_);
 
         let mut objects = Vec::new();
-        objects.push((Square::Empty, self.robot));
-
         let mut positions = VecDeque::new();
         positions.push_back(self.robot);
+        let mut seen = HashSet::new();
 
         while let Some(curr) = positions.pop_front() {
             if self.inner[curr.0][curr.1] == Square::Wall {
                 return;
-            } else if self.inner[curr.0][curr.1] == Square::Empty {
-                break;
+            }
+
+            if self.inner[curr.0][curr.1] == Square::BoxLeft {
+                let neighbour = self.next_position(curr, &Offset(0, 1));
+                if seen.get(&neighbour).is_none() {
+                    positions.push_back(neighbour);
+                }
+            } else if self.inner[curr.0][curr.1] == Square::BoxRight {
+                let neighbour = self.next_position(curr, &Offset(0, -1));
+                if seen.get(&neighbour).is_none() {
+                    positions.push_back(neighbour);
+                }
             }
 
             let next = self.next_position(curr, &offset);
             objects.push((self.inner[curr.0][curr.1].clone(), next));
-            positions.push_back(next);
+            objects.push((Square::Empty, curr));
+            seen.insert(curr);
+            if self.inner[next.0][next.1] != Square::Empty {
+                positions.push_back(next);
+            }
         }
 
         while let Some((object, new_position)) = objects.pop() {
@@ -120,6 +153,36 @@ impl Matrix {
             (current.0 as i64 + offset.0) as usize,
             (current.1 as i64 + offset.1) as usize,
         )
+    }
+
+    fn recreate_map(&mut self) {
+        for row_idx in 0..self.inner.len() {
+            let mut new_row = Vec::new();
+            let mut robot_flag = false;
+            for s in &self.inner[row_idx] {
+                let squares = match s {
+                    Square::Wall => vec![Square::Wall, Square::Wall],
+                    Square::Empty => vec![Square::Empty, Square::Empty],
+                    Square::Box => vec![Square::BoxLeft, Square::BoxRight],
+                    Square::Robot => {
+                        robot_flag = true;
+                        vec![Square::Robot, Square::Empty]
+                    }
+                    _ => panic!(),
+                };
+                new_row.extend(squares);
+            }
+            if robot_flag {
+                new_row.iter().enumerate().for_each(|(c, s)| {
+                    if s != &Square::Robot {
+                        return;
+                    }
+                    self.robot = (row_idx, c);
+                });
+            }
+            self.width = new_row.len();
+            self.inner[row_idx] = new_row;
+        }
     }
 }
 
@@ -166,13 +229,21 @@ fn read_moves<B: BufRead>(mut buf: B) -> Vec<Move> {
 
 pub fn run<B: BufRead>(mut buf: B) -> u64 {
     let mut matrix = Matrix::new(&mut buf);
+    matrix.recreate_map();
     let moves = read_moves(&mut buf);
     matrix.process_moves(moves);
+
+    // for row in &matrix.inner {
+    //     for c in row {
+    //         print!("{:?}", c);
+    //     }
+    //     println!();
+    // }
 
     let mut total = 0;
     for i in 0..matrix.height {
         for j in 0..matrix.width {
-            if matrix.inner[i][j] == Square::Box {
+            if matrix.inner[i][j] == Square::BoxLeft {
                 total += 100 * i + j;
             }
         }
