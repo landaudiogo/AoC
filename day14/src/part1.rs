@@ -71,7 +71,5 @@ pub fn run<B: BufRead>(mut buf: B) -> u64 {
         }
     }
 
-    dbg!(quadrants);
-
     quadrants[0] * quadrants[1] * quadrants[2] * quadrants[3]
 }
