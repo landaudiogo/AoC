@@ -130,34 +130,9 @@ impl Matrix {
         let mut seats = HashSet::new();
         let mut visited = HashSet::new();
         let mut visit = Vec::new();
-        visit.push((
-            Reindeer {
-                pos: self.end,
-                dir: (1, 0),
-            },
-            min_score.unwrap() as i64,
-        ));
-        visit.push((
-            Reindeer {
-                pos: self.end,
-                dir: (-1, 0),
-            },
-            min_score.unwrap() as i64,
-        ));
-        visit.push((
-            Reindeer {
-                pos: self.end,
-                dir: (0, 1),
-            },
-            min_score.unwrap() as i64,
-        ));
-        visit.push((
-            Reindeer {
-                pos: self.end,
-                dir: (0, -1),
-            },
-            min_score.unwrap() as i64,
-        ));
+        for dir in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+            visit.push((Reindeer { pos: self.end, dir }, min_score.unwrap() as i64));
+        }
         while let Some((reindeer, cost)) = visit.pop() {
             let moves = self.backtrack_states(&reindeer, cost);
             moves.into_iter().for_each(|(nstate, ncost)| {
