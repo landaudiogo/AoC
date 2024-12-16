@@ -16,6 +16,7 @@ enum Square {
     Empty,
     Start,
     End,
+    Seat,
 }
 
 impl From<char> for Square {
@@ -40,6 +41,7 @@ impl Debug for Square {
             Self::Empty => '.',
             Self::Start => 'S',
             Self::End => 'E',
+            Self::Seat => 'O',
         };
         write!(f, "{}", value)
     }
@@ -93,9 +95,10 @@ impl Matrix {
         }
     }
 
-    fn find_min_score(&self) -> u64 {
+    fn find_min_score(&mut self) -> (u64, u64) {
         let mut min_score = None;
         let mut seen = HashMap::new();
+        seen.insert(self.start.clone(), 0);
         let mut visit = Vec::new();
         visit.push((self.start.clone(), 0));
         while let Some((reindeer, cost)) = visit.pop() {
@@ -103,9 +106,11 @@ impl Matrix {
                 if let Some(min) = min_score {
                     if cost < min {
                         min_score = Some(cost);
+                        seen.insert(reindeer, cost);
                     }
                 } else {
                     min_score = Some(cost);
+                    seen.insert(reindeer, cost);
                 }
                 continue;
             }
@@ -121,7 +126,93 @@ impl Matrix {
             });
             seen.insert(reindeer, cost);
         }
-        min_score.unwrap()
+
+        let mut seats = HashSet::new();
+        let mut visited = HashSet::new();
+        let mut visit = Vec::new();
+        visit.push((
+            Reindeer {
+                pos: self.end,
+                dir: (1, 0),
+            },
+            min_score.unwrap() as i64,
+        ));
+        visit.push((
+            Reindeer {
+                pos: self.end,
+                dir: (-1, 0),
+            },
+            min_score.unwrap() as i64,
+        ));
+        visit.push((
+            Reindeer {
+                pos: self.end,
+                dir: (0, 1),
+            },
+            min_score.unwrap() as i64,
+        ));
+        visit.push((
+            Reindeer {
+                pos: self.end,
+                dir: (0, -1),
+            },
+            min_score.unwrap() as i64,
+        ));
+        while let Some((reindeer, cost)) = visit.pop() {
+            let moves = self.backtrack_states(&reindeer, cost);
+            moves.into_iter().for_each(|(nstate, ncost)| {
+                if seen.get(&nstate).map(|n| *n as i64) == Some(ncost) && ncost >= 0 {
+                    if let None = visited.get(&(nstate.clone(), ncost)) {
+                        visit.push((nstate, ncost));
+                    }
+                }
+            });
+            if seen.get(&reindeer).map(|n| *n as i64) == Some(cost) {
+                seats.insert(reindeer.pos);
+            }
+            visited.insert((reindeer, cost));
+        }
+
+        (min_score.unwrap(), seats.len() as u64)
+    }
+
+    fn backtrack_states(&self, reindeer: &Reindeer, cost: i64) -> Vec<(Reindeer, i64)> {
+        let mut states = Vec::new();
+        let dir = self.rotate90(reindeer.dir, true);
+        let next = self.get_relative_pos(reindeer.pos, dir);
+        if self.inner[next.0][next.1] != Square::Wall {
+            states.push((
+                Reindeer {
+                    pos: reindeer.pos,
+                    dir: self.rotate180(dir),
+                },
+                cost as i64 - 1000,
+            ));
+        }
+
+        let dir = self.rotate90(reindeer.dir, false);
+        let next = self.get_relative_pos(reindeer.pos, dir);
+        if self.inner[next.0][next.1] != Square::Wall {
+            states.push((
+                Reindeer {
+                    dir: self.rotate180(dir),
+                    pos: reindeer.pos,
+                },
+                cost as i64 - 1000,
+            ));
+        }
+
+        let next = self.get_relative_pos(reindeer.pos, self.rotate180(reindeer.dir));
+        if self.inner[next.0][next.1] != Square::Wall {
+            states.push((
+                Reindeer {
+                    pos: next,
+                    dir: reindeer.dir,
+                },
+                cost as i64 - 1,
+            ));
+        }
+        states
     }
 
     fn find_valid_next_states(&self, reindeer: &Reindeer, cost: u64) -> Vec<(Reindeer, u64)> {
@@ -129,13 +220,25 @@ impl Matrix {
         let dir = self.rotate90(reindeer.dir, true);
         let next = self.get_relative_pos(reindeer.pos, dir);
         if self.inner[next.0][next.1] != Square::Wall {
-            valid.push((Reindeer { pos: next, dir }, cost + 1001));
+            valid.push((
+                Reindeer {
+                    pos: reindeer.pos,
+                    dir,
+                },
+                cost + 1000,
+            ));
         }
 
         let dir = self.rotate90(reindeer.dir, false);
         let next = self.get_relative_pos(reindeer.pos, dir);
         if self.inner[next.0][next.1] != Square::Wall {
-            valid.push((Reindeer { dir, pos: next }, cost + 1001));
+            valid.push((
+                Reindeer {
+                    dir,
+                    pos: reindeer.pos,
+                },
+                cost + 1000,
+            ));
         }
 
         let next = self.get_relative_pos(reindeer.pos, reindeer.dir);
@@ -149,6 +252,10 @@ impl Matrix {
             ));
         }
         valid
+    }
+
+    fn rotate180(&self, offset: (i64, i64)) -> (i64, i64) {
+        (-offset.0, -offset.1)
     }
 
     fn rotate90(&self, offset: (i64, i64), clockwise: bool) -> (i64, i64) {
@@ -179,8 +286,8 @@ impl Debug for Matrix {
     }
 }
 
-pub fn run<B: BufRead>(buf: B) -> u64 {
-    let matrix = Matrix::new(buf);
+pub fn run<B: BufRead>(buf: B) -> (u64, u64) {
+    let mut matrix = Matrix::new(buf);
     println!("{:?}", matrix);
     matrix.find_min_score()
 }
