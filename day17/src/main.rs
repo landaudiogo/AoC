@@ -204,15 +204,21 @@ impl Program {
 fn main() {
     let buf = BufReader::new(File::open("input").unwrap());
     let mut program = Program::new(buf);
-    let program_len = program.raw_program.len();
+    program.run();
+    println!("=== Part1 ===");
+    for out in program.output {
+        print!("{},", out);
+    }
+    println!();
 
+    println!();
+    println!("=== Part2 ===");
+    let program_len = program.raw_program.len();
     let mut visit = VecDeque::new();
     visit.push_back(0);
     while let Some(next) = visit.pop_front() {
         for i in next * 8..next * 8 + 8 {
             program.ax = i;
-            program.bx = 0;
-            program.cx = 0;
             program.ip = 0;
             program.output = Vec::new();
             program.run();
