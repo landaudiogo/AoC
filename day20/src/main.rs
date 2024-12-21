@@ -1,9 +1,20 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Debug,
     fs::File,
     io::{BufRead, BufReader},
 };
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Copy)]
+enum Cheat {
+    Started(u64),
+    Depleted,
+}
+
+enum Reach {
+    Reachable(u64),
+    Unreachable,
+}
 
 #[derive(PartialEq, Eq, Clone)]
 pub enum Square {
@@ -119,6 +130,35 @@ impl Matrix {
         }
     }
 
+    fn get_cheats(
+        &self,
+        curr: (usize, usize),
+        cheat: u64,
+        cache: &mut HashMap<((usize, usize), u64), HashSet<(usize, usize)>>,
+    ) -> HashSet<(usize, usize)> {
+        if let Some(set) = cache.get(&(curr, cheat)) {
+            return set.clone();
+        }
+
+        if cheat == 0 && self.inner[curr.0][curr.1] != Square::Wall {
+            return HashSet::from_iter([curr]);
+        }
+
+        let mut exits = HashSet::new();
+        for offset in [Offset(0, 1), Offset(0, -1), Offset(1, 0), Offset(-1, 0)] {
+            if let Some(next) = self.next_position(curr, &offset) {
+                if cheat >= 1 {
+                    exits.extend(self.get_cheats(next, cheat - 1, cache));
+                    if self.inner[next.0][next.1] != Square::Wall {
+                        exits.insert(next);
+                    }
+                }
+            }
+        }
+        cache.insert((curr, cheat), exits.clone());
+        exits
+    }
+
     fn get_start_dist(&self) -> HashMap<(usize, usize), u64> {
         let mut visit = Vec::new();
         visit.push(self.start);
@@ -174,45 +214,48 @@ impl Matrix {
 
 fn main() {
     let matrix = Matrix::new(BufReader::new(File::open("input").unwrap()));
+    println!("{:?}", matrix);
     let start_dist = matrix.get_start_dist();
     let end_dist = matrix.get_end_dist();
     let shortest_time = *start_dist.get(&matrix.end).unwrap();
-    let mut time_saving = HashMap::new();
+
+    let mut improvements = HashMap::new();
+    let mut cache = HashMap::new();
+    let cheat_time = 20;
+    let minimum_improvement = 100;
     for i in 0..matrix.height {
         for j in 0..matrix.width {
-            if matrix.inner[i][j] == Square::Wall {
-                let curr = (i, j);
-                let offsets = [
-                    (Offset(0, 1), Offset(0, -1)),
-                    (Offset(0, -1), Offset(0, 1)),
-                    (Offset(1, 0), Offset(-1, 0)),
-                    (Offset(-1, 0), Offset(1, 0)),
-                ];
-                for off in offsets {
-                    let prev = matrix.next_position(curr, &off.0);
-                    let next = matrix.next_position(curr, &off.1);
-                    if let (Some(prev), Some(next)) = (prev, next) {
-                        let prev_cost = start_dist.get(&prev);
-                        let next_cost = end_dist.get(&next);
-                        if let (Some(prev), Some(next)) = (prev_cost, next_cost) {
-                            if prev + next + 2 < shortest_time {
-                                let mut save = time_saving
-                                    .entry(shortest_time - (prev + next + 2))
-                                    .or_insert(0);
-                                *save += 1;
-                            }
-                        }
-                    }
+            if matrix.inner[i][j] != Square::Wall {
+                let entry = (i, j);
+                let exits = matrix.get_cheats((i, j), cheat_time, &mut cache);
+
+                for exit in exits {
+                    let entry_cost = start_dist.get(&(i, j)).unwrap();
+                    let exit_cost = end_dist.get(&exit).unwrap();
+                    let total_cost = entry_cost
+                        + exit_cost
+                        + (entry.0 as i64 - exit.0 as i64).abs() as u64
+                        + (entry.1 as i64 - exit.1 as i64).abs() as u64;
+                    let val = improvements.entry(total_cost).or_insert(0);
+                    *val += 1;
                 }
             }
         }
     }
 
-    let mut total = 0;
-    for (k, v) in time_saving {
-        if k >= 100 {
-            total += v;
-        }
-    }
-    dbg!(total);
+    let mut improvements = improvements
+        .into_iter()
+        .filter(|(k, _)| *k <= shortest_time)
+        .map(|(k, v)| (shortest_time - k, v))
+        .filter(|(k, _)| *k >= minimum_improvement)
+        .collect::<Vec<(u64, u64)>>();
+    improvements.sort();
+    println!("{:?}", improvements);
+    println!(
+        "{:?}",
+        improvements
+            .iter()
+            .map(|(_, v)| v)
+            .fold(0, |acc, v| acc + v)
+    );
 }
