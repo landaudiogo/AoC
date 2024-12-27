@@ -210,6 +210,28 @@ pub fn run<B: BufRead>(mut buf: B) {
         }
     }
     output_nodes.sort();
+    for i in (0..45).rev() {
+        let x = format!("x{:>02}", i);
+        let nidx = nodes[&x];
+        match dag[nidx] {
+            Node::Literal(Some(b)) => {
+                print!("{}", b);
+            }
+            _ => {}
+        }
+    }
+    println!();
+    for i in (0..45).rev() {
+        let y = format!("y{:>02}", i);
+        let nidx = nodes[&y];
+        match dag[nidx] {
+            Node::Literal(Some(b)) => {
+                print!("{}", b);
+            }
+            _ => {}
+        }
+    }
+    println!();
     for node in output_nodes.iter().rev() {
         let nidx = nodes[node];
         match dag[nidx] {
