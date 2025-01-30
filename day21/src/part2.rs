@@ -1,16 +1,18 @@
 use itertools::Itertools;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{BTreeSet, HashMap, HashSet, VecDeque},
     fs::File,
     io::{self, BufRead, BufReader},
 };
-
-mod part2;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 enum Key {
     Value(char),
     Invalid,
+}
+
+fn seq_to_string(seq: &[char]) -> String {
+    seq.into_iter().collect::<String>()
 }
 
 fn arrow_from_dir(dir: (i64, i64)) -> char {
@@ -47,19 +49,6 @@ impl Keypad {
             inner: keypad,
             char_map,
         }
-    }
-
-    fn robot_sequence(&mut self, sequence: &[char]) -> Vec<Vec<char>> {
-        let mut sequences = Vec::new();
-        for (from, to) in sequence.into_iter().tuple_windows() {
-            sequences.push(self.move_to_key(*from, *to));
-        }
-        sequences
-            .iter()
-            .map(|s| s.iter())
-            .multi_cartesian_product()
-            .map(|seq| seq.into_iter().flatten().map(|x| *x).collect::<Vec<char>>())
-            .collect()
     }
 
     fn move_to_key(&self, from: char, key: char) -> HashSet<Vec<char>> {
@@ -121,7 +110,7 @@ impl Keypad {
 struct Chain {
     numpad: Keypad,
     arrowpad: Keypad,
-    cache: HashMap<(char, char, i64), HashSet<Vec<char>>>,
+    cache: HashMap<(String, i64), i64>,
     len: i64,
 }
 
@@ -145,11 +134,12 @@ impl Chain {
         }
     }
 
-    fn robot_sequence(&self, sequence: &[char], depth: i64) -> HashSet<Vec<char>> {
-        let res = HashSet::new();
+    fn robot_sequence(&mut self, sequence: &[char], depth: i64) -> i64 {
+        let mut res = Vec::new();
         for pair in sequence.into_iter().tuple_windows::<(&char, &char)>() {
-            if let Some(seqs) = self.cache.get(&(*pair.0, *pair.1, depth)) {
-                return seqs.clone();
+            if let Some(min_len) = self.cache.get(&(seq_to_string(&[*pair.0, *pair.1]), depth)) {
+                res.push(*min_len);
+                continue;
             }
 
             let keypad = if depth == self.len {
@@ -159,75 +149,50 @@ impl Chain {
             };
 
             if depth == 1 {
-                return keypad.move_to_key(*pair.0, *pair.1);
+                let seqs_for_pair = keypad.move_to_key(*pair.0, *pair.1);
+                let shortest = seqs_for_pair.iter().next().unwrap().len() as i64;
+                res.push(shortest);
+                self.cache
+                    .insert((seq_to_string(&[*pair.0, *pair.1]), depth), shortest);
+                continue;
             }
 
+            let mut lengths = BTreeSet::new();
             for mut seq in keypad.move_to_key(*pair.0, *pair.1) {
                 seq.insert(0, 'A');
-                self.robot_sequence(seq.as_slice(), depth - 1);
+                lengths.insert(self.robot_sequence(seq.as_slice(), depth - 1));
             }
+
+            let shortest = lengths.first().unwrap();
+            self.cache
+                .insert((seq_to_string(&[*pair.0, *pair.1]), depth), *shortest);
+            res.push(*shortest);
         }
-        res
+        res.iter().fold(0, |acc, x| acc + x)
     }
 }
 
-fn main() {
-    // let numlayout = vec![
-    //     vec![Key::Value('7'), Key::Value('8'), Key::Value('9')],
-    //     vec![Key::Value('4'), Key::Value('5'), Key::Value('6')],
-    //     vec![Key::Value('1'), Key::Value('2'), Key::Value('3')],
-    //     vec![Key::Invalid, Key::Value('0'), Key::Value('A')],
-    // ];
-    // let arrowlayout = vec![
-    //     vec![Key::Invalid, Key::Value('^'), Key::Value('A')],
-    //     vec![Key::Value('<'), Key::Value('v'), Key::Value('>')],
-    // ];
-
-    // let mut sum = 0;
-    // let input = File::open("input").unwrap();
-    // for line in io::BufReader::new(input).lines() {
-    //     let mut robots = vec![Keypad::new(numlayout.clone())];
-    //     (0..2).for_each(|_| robots.push(Keypad::new(arrowlayout.clone())));
-    //     let line = line.unwrap();
-    //     let num_sequence = line.trim();
-    //     let mut input_sequences =
-    //         HashSet::from_iter(vec![num_sequence.chars().collect::<Vec<char>>()]);
-    //     for mut robot in robots {
-    //         let mut output_sequences = HashSet::new();
-    //         for mut s in input_sequences {
-    //             s.insert(0, 'A');
-    //             output_sequences.extend(robot.robot_sequence(s.as_slice()));
-    //         }
-    //         let shortest_len = output_sequences
-    //             .iter()
-    //             .fold(None, |acc, x| {
-    //                 if let Some(min) = acc {
-    //                     if x.len() < min {
-    //                         Some(x.len())
-    //                     } else {
-    //                         Some(min)
-    //                     }
-    //                 } else {
-    //                     Some(x.len())
-    //                 }
-    //             })
-    //             .unwrap();
-    //         let output_sequences = output_sequences
-    //             .into_iter()
-    //             .filter(|s| s.len() == shortest_len)
-    //             .collect::<HashSet<Vec<char>>>();
-    //         input_sequences = output_sequences;
-    //     }
-
-    //     let shortest = input_sequences.into_iter().next().unwrap().len();
-    //     let num_part = num_sequence
-    //         .split("A")
-    //         .next()
-    //         .unwrap()
-    //         .parse::<usize>()
-    //         .unwrap();
-    //     sum += shortest * num_part;
-    // }
-    // println!("{sum}");
-    part2::run();
+pub fn run() {
+    let depth = 26;
+    let mut chain = Chain::new(depth);
+    let mut sum = 0;
+    let input = File::open("input").unwrap();
+    for line in io::BufReader::new(input).lines() {
+        let line = line.unwrap();
+        let num_sequence = line.trim();
+        let mut num_sequence = num_sequence.chars().collect::<Vec<char>>();
+        num_sequence.insert(0, 'A');
+        let shortest = chain.robot_sequence(num_sequence.as_slice(), depth);
+        num_sequence.remove(0);
+        let num_sequence = num_sequence.into_iter().collect::<String>();
+        let num_part = num_sequence
+            .split("A")
+            .next()
+            .unwrap()
+            .parse::<usize>()
+            .unwrap();
+        sum += shortest * num_part as i64;
+        println!("{} * {}", shortest, num_part);
+    }
+    println!("{sum}");
 }
