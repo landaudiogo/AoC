@@ -49,7 +49,6 @@ impl Program {
         for i in (0..self.inner.len()).step_by(4) {
             let instruction = Instruction::from_slice(&self.inner[i..(i + 3)], &self.inner);
             if let Ok(instruction) = instruction {
-                println!("{:?} {:?}", instruction, instruction.compute());
                 let result_pos = self.inner[i + 3] as usize;
                 self.inner[result_pos] = instruction.compute();
             } else {
@@ -66,5 +65,7 @@ pub fn run<B: BufRead>(mut buf: B) {
     buf.read_to_string(&mut program).unwrap();
     let iter = program.trim().split(",").map(|v| v.parse::<i64>().unwrap());
     let mut program = Program::new(iter);
+    program.inner[1] = 12;
+    program.inner[2] = 2;
     program.execute();
 }
