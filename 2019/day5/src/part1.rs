@@ -1,4 +1,7 @@
-use std::{error::Error, io::BufRead};
+use std::{
+    error::Error,
+    io::{BufRead, Write},
+};
 
 #[derive(Debug)]
 enum Instruction<'a> {
@@ -15,12 +18,36 @@ enum Instruction<'a> {
     Fin,
 }
 
+enum ParameterType {
+    Ref,
+    Val,
+}
+
+impl ParameterType {
+    fn from_opcode(opcode: i64, digit: u32) -> Self {
+        match (opcode / 10i64.pow(digit - 1)) % 10 {
+            0 => Self::Ref,
+            1 => Self::Val,
+            _ => panic!("Invalid parameter type"),
+        }
+    }
+}
+
 impl<'a> Instruction<'a> {
     fn from_pc(pc: &mut usize, program: &'a mut [i64]) -> Result<Self, Box<dyn std::error::Error>> {
-        match program[*pc] {
+        let operator = program[*pc] % 100;
+        match operator {
             1 => {
-                let x = program[program[*pc + 1] as usize];
-                let y = program[program[*pc + 2] as usize];
+                let x = match ParameterType::from_opcode(program[*pc], 3) {
+                    ParameterType::Ref => program[program[*pc + 1] as usize],
+                    ParameterType::Val => program[*pc + 1],
+                };
+
+                let y = match ParameterType::from_opcode(program[*pc], 4) {
+                    ParameterType::Ref => program[program[*pc + 2] as usize],
+                    ParameterType::Val => program[*pc + 2],
+                };
+
                 let instruction = Self::Sum {
                     operands: (x, y),
                     output: &mut program[program[*pc + 3] as usize],
@@ -29,8 +56,15 @@ impl<'a> Instruction<'a> {
                 Ok(instruction)
             }
             2 => {
-                let x = program[program[*pc + 1] as usize];
-                let y = program[program[*pc + 2] as usize];
+                let x = match ParameterType::from_opcode(program[*pc], 3) {
+                    ParameterType::Ref => program[program[*pc + 1] as usize],
+                    ParameterType::Val => program[*pc + 1],
+                };
+
+                let y = match ParameterType::from_opcode(program[*pc], 4) {
+                    ParameterType::Ref => program[program[*pc + 2] as usize],
+                    ParameterType::Val => program[*pc + 2],
+                };
                 let instruction = Self::Mul {
                     operands: (x, y),
                     output: &mut program[program[*pc + 3] as usize],
@@ -68,12 +102,14 @@ impl<'a> Instruction<'a> {
             }
             Self::In(address) => {
                 let mut line = String::new();
+                print!("Provide input: ");
+                std::io::stdout().flush().unwrap();
                 std::io::stdin().read_line(&mut line).unwrap();
                 *address = line.trim().parse::<i64>().unwrap();
                 Ok(())
             }
             Self::Out(val) => {
-                dbg!(address);
+                println!("{}", val);
                 Ok(())
             }
             Self::Fin => Err("Fin".into()),
@@ -111,5 +147,4 @@ pub fn run<B: BufRead>(mut buf: B) {
     let iter = program.trim().split(",").map(|v| v.parse::<i64>().unwrap());
     let mut program = Program::new(iter);
     program.execute();
-    dbg!(program.inner[0]);
 }
