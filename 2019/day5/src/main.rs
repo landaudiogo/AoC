@@ -1,7 +1,7 @@
 use std::{fs::File, io::BufReader};
 
-mod part1;
+mod intcode;
 
 fn main() {
-    part1::run(BufReader::new(File::open("input").unwrap()));
+    intcode::run(BufReader::new(File::open("input").unwrap()));
 }
