@@ -10,6 +10,8 @@ enum Instruction<'a> {
         operands: (i64, i64),
         output: &'a mut i64,
     },
+    In(&'a mut i64),
+    Out(i64),
     Fin,
 }
 
@@ -36,6 +38,16 @@ impl<'a> Instruction<'a> {
                 *pc += 4;
                 Ok(instruction)
             }
+            3 => {
+                let instruction = Self::In(&mut program[program[*pc + 1] as usize]);
+                *pc += 2;
+                Ok(instruction)
+            }
+            4 => {
+                let instruction = Self::Out(program[program[*pc + 1] as usize]);
+                *pc += 2;
+                Ok(instruction)
+            }
             99 => {
                 *pc += 1;
                 Ok(Self::Fin)
@@ -52,6 +64,16 @@ impl<'a> Instruction<'a> {
             }
             Self::Mul { operands, output } => {
                 *output = operands.0 * operands.1;
+                Ok(())
+            }
+            Self::In(address) => {
+                let mut line = String::new();
+                std::io::stdin().read_line(&mut line).unwrap();
+                *address = line.trim().parse::<i64>().unwrap();
+                Ok(())
+            }
+            Self::Out(val) => {
+                dbg!(address);
                 Ok(())
             }
             Self::Fin => Err("Fin".into()),
