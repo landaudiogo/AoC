@@ -1,4 +1,8 @@
-use std::{collections::VecDeque, io::Write};
+use std::{
+    collections::VecDeque,
+    io::Write,
+    sync::mpsc::{Receiver, Sender},
+};
 
 #[derive(Debug)]
 enum Instruction<'a, In: Input, Out: Output> {
@@ -229,31 +233,15 @@ impl Output for std::io::Stdout {
     }
 }
 
-pub struct Pipe {
-    pub inner: VecDeque<i64>,
-}
-
-impl Pipe {
-    pub fn new() -> Self {
-        Self {
-            inner: VecDeque::new(),
-        }
-    }
-
-    pub fn new_with_data(data: VecDeque<i64>) -> Self {
-        Self { inner: data }
-    }
-}
-
-impl Input for Pipe {
-    fn read_input(&mut self) -> i64 {
-        self.inner.pop_front().unwrap()
-    }
-}
-
-impl Output for Pipe {
+impl Output for Sender<i64> {
     fn write_output(&mut self, val: i64) {
-        self.inner.push_back(val);
+        self.send(val).unwrap();
+    }
+}
+
+impl Input for Receiver<i64> {
+    fn read_input(&mut self) -> i64 {
+        self.recv().unwrap()
     }
 }
 

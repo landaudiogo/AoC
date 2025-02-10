@@ -8,7 +8,7 @@ pub fn run<B: BufRead>(mut buf: B) {
     let iter = program.trim().split(",").map(|v| v.parse::<i64>().unwrap());
     let mut max = None;
 
-    for s in (0..=4).permutations(5) {
+    for s in (5..=9).permutations(5) {
         let mut txs = HashMap::new();
         let mut rxs = HashMap::new();
         (0..6).for_each(|i| {
