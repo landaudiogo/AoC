@@ -112,7 +112,7 @@ where
                 Ok(instruction)
             }
             3 => {
-                let output = parameter_from_pc(program, *pc, *rb, 2);
+                let output = parameter_from_pc(program, *pc, *rb, 0);
                 let instruction = Self::In { input, output };
                 *pc += 2;
                 Ok(instruction)
