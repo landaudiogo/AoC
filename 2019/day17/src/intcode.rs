@@ -306,7 +306,7 @@ impl<'a, 'b, In: Input + Debug, Out: Output + Debug> Program<'a, 'b, In, Out> {
             )
             .unwrap();
             if let Err(_e) = instruction.compute() {
-                println!("{:?}", _e);
+                // println!("{:?}", _e);
                 break;
             }
         }

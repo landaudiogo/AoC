@@ -27,11 +27,7 @@ pub fn run<B: BufRead>(mut buf: B) {
             10 => {
                 map.push(Vec::new());
             }
-            94 => {
-                let j = row.len() - 1;
-                let i = map.len() - 1;
-                map[i][j] = '^';
-            }
+            v => row.push(char::from_u32(v as u32).unwrap()),
             _ => panic!(),
         }
     }
@@ -70,12 +66,5 @@ pub fn run<B: BufRead>(mut buf: B) {
         score += inter.0 * inter.1;
     }
 
-    // println!("{:?}", score);
-    for (i, row) in map.iter().enumerate() {
-        // print!("{i}: ");
-        for cell in row {
-            print!("{cell}");
-        }
-        println!();
-    }
+    println!("p1: {}", score);
 }

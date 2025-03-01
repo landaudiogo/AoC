@@ -255,9 +255,9 @@ impl Matrix {
     }
 }
 
-pub fn run<B: BufRead>(mut buf: B) {
+pub fn run<B: BufRead>(mut buf: B) -> Result<(), Box<dyn std::error::Error>> {
     let mut program = String::new();
-    buf.read_to_string(&mut program);
+    buf.read_to_string(&mut program)?;
     let (mut otx, orx) = mpsc::channel();
     let (itx, mut irx) = mpsc::channel();
     thread::spawn(move || {
@@ -272,21 +272,26 @@ pub fn run<B: BufRead>(mut buf: B) {
     });
 
     let matrix = Matrix::from_channel(&orx);
-    matrix.display_grid();
     let stream = matrix.find_path().unwrap();
 
     let stream = stream.clone() + "\nn\n";
     for c in stream.chars() {
-        itx.send(c as u8 as i64);
+        itx.send(c as u8 as i64)?;
     }
 
     while let Ok(v) = orx.recv() {
         if let Some(c) = char::from_u32(v as u32) {
-            print!("{c}")
+            if c.is_ascii() {
+                print!("{c}")
+            } else {
+                println!("p2: {}", v);
+            }
         } else {
-            println!("{}", v);
+            println!("p2: {}", v);
         }
     }
+
+    Ok(())
 }
 
 fn routines(orig: String, s: String, depth: usize, current: Vec<String>) -> Option<String> {
@@ -295,7 +300,6 @@ fn routines(orig: String, s: String, depth: usize, current: Vec<String>) -> Opti
         let mut visit = Vec::new();
         visit.push((String::new(), orig));
         while let Some((calls, remainder)) = visit.pop() {
-            // println!("{:?} {}", current, remainder);
             if remainder.len() == 0 {
                 let calls: String = leading_comma.replace_all(&calls, "").into();
                 let calls = calls.replace("0", "A");
@@ -379,12 +383,9 @@ mod test {
     use super::routines;
 
     #[test]
-    fn test() {
-        dbg!(routines(
-            String::from("L,10,L,8,R,8,L,8,R,6,L,10,L,8,R,8,L,8,R,6,R,6,R,8,R,8,R,6,R,6,L,8,L,10,R,6,R,8,R,8,R,6,R,6,L,8,L,10,R,6,R,8,R,8,R,6,R,6,L,8,L,10,R,6,R,8,R,8,L,10,L,8,R,8,L,8,R,6"),
-            String::from("L,10,L,8,R,8,L,8,R,6,L,10,L,8,R,8,L,8,R,6,R,6,R,8,R,8,R,6,R,6,L,8,L,10,R,6,R,8,R,8,R,6,R,6,L,8,L,10,R,6,R,8,R,8,R,6,R,6,L,8,L,10,R,6,R,8,R,8,L,10,L,8,R,8,L,8,R,6"),
-            0,
-            vec![],
-        ));
+    fn test() -> Result<(), Box<dyn std::error::Error>> {
+        let test: String = "R,8,R,8,R,4,R,4,R,8,L,6,L,2,R,4,R,4,R,8,R,8,R,8,L,6,L,2".into();
+        routines(test.clone(), test, 0, Vec::new()).ok_or("failed")?;
+        Ok(())
     }
 }
