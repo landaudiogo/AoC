@@ -12,7 +12,8 @@
                 default = pkgs.mkShell {
                     packages = with pkgs; [ 
                         cargo 
-                        rustc 
+                        rustc
+                        rustfmt
                         rust-analyzer 
                     ];
                 };
