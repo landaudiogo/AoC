@@ -5,7 +5,7 @@ use std::{
 };
 
 fn main() {
-    p1();
+    solve();
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
@@ -37,15 +37,15 @@ enum Move {
 struct Grid {
     inner: Vec<Vec<Square>>,
     keys: HashMap<char, Key>,
-    start: Robot,
-    shortest_path: HashMap<(Robot, Key), (u64, RequiredKeys)>,
+    start: Vec<Robot>,
+    shortest_path: HashMap<(Robot, Key), Option<(u64, RequiredKeys)>>,
 }
 
 impl Grid {
     fn new(map: String) -> Self {
         let mut grid = Vec::new();
         let mut keys = HashMap::new();
-        let mut robot = None;
+        let mut robots = Vec::new();
 
         for (y, line) in map.lines().enumerate() {
             let mut row = Vec::new();
@@ -54,7 +54,7 @@ impl Grid {
                     '#' => Square::Wall,
                     '.' => Square::Empty,
                     '@' => {
-                        robot = Some((y, x));
+                        robots.push((y, x));
                         Square::Robot
                     }
                     c => {
@@ -75,14 +75,14 @@ impl Grid {
         Self {
             inner: grid,
             keys: keys,
-            start: robot.unwrap(),
+            start: robots,
             shortest_path: HashMap::new(),
         }
     }
 
-    fn path(&mut self, robot: &Robot, key: &Key) -> (u64, RequiredKeys) {
+    fn path(&mut self, robot: &Robot, key: &Key) -> Option<(u64, RequiredKeys)> {
         if let Some(shortest) = self.shortest_path.get(&(*robot, key.clone())) {
-            return (shortest.0, shortest.1.clone());
+            return shortest.clone();
         };
 
         let mut visited: HashSet<Robot> = HashSet::new();
@@ -94,8 +94,8 @@ impl Grid {
                 Square::Key(k) => {
                     if k == key {
                         self.shortest_path
-                            .insert((*robot, key.clone()), (cost, required_keys.clone()));
-                        return (cost, required_keys);
+                            .insert((*robot, key.clone()), Some((cost, required_keys.clone())));
+                        return Some((cost, required_keys));
                     }
                 }
                 Square::Door(k) => {
@@ -113,7 +113,9 @@ impl Grid {
                 }
             }
         }
-        panic!("we should be able to reach all keys");
+
+        self.shortest_path.insert((*robot, key.clone()), None);
+        return None;
     }
 
     fn move_robot(&self, curr: Robot, dir: Move) -> Option<Robot> {
@@ -190,53 +192,69 @@ impl Display for Grid {
     }
 }
 
-fn p1() {
+// This function solves for both p1 and p2
+// Just make sure you change the input
+fn solve() {
     let mut grid = Grid::new(fs::read_to_string("../inputs/day18.txt").unwrap());
-    let mut seen: HashMap<(Robot, String), u64> = HashMap::new();
+    let mut seen: HashMap<(Vec<Robot>, String), u64> = HashMap::new();
+    let mut visit: BTreeMap<(u64, Vec<Robot>, String), (MissingKeys, HeldKeys)> = BTreeMap::new();
 
-    let mut visit: BTreeMap<(u64, Robot, String), (MissingKeys, HeldKeys)> = BTreeMap::new();
     visit.insert(
-        (0, grid.start, String::new()),
+        (0, grid.start.clone(), String::new()),
         (
             HashSet::from_iter(grid.keys.values().map(|k| k.clone())),
             HashSet::new(),
         ),
     );
-    while let Some(((cost, robot, seq), (missing_keys, held_keys))) = visit.pop_first() {
+
+    while let Some(((cost, robots, seq), (missing_keys, held_keys))) = visit.pop_first() {
         if missing_keys.len() == 0 {
-            println!("p1: arrived at solution {cost} {seq}");
+            println!("arrived at solution {cost} {seq}");
             break;
         }
-        for key in &missing_keys {
-            let (added_cost, required_keys) = grid.path(&robot, &key);
-            if required_keys
-                .difference(&held_keys)
-                .collect::<Vec<_>>()
-                .len()
-                == 0
-            {
-                let mut missing_keys = missing_keys.clone();
-                let mut held_keys = held_keys.clone();
-                let mut seq = seq.clone();
 
-                missing_keys.remove(&key);
-                held_keys.insert(key.clone());
-                seq.push(key.id);
-                let mut sorted_keys = seq.chars().collect::<Vec<char>>();
-                sorted_keys.sort();
-                let sorted_keys = String::from_iter(sorted_keys);
-                let next_cost = cost + added_cost;
+        for (i, robot) in robots.iter().enumerate() {
+            for key in &missing_keys {
+                let Some((added_cost, required_keys)) = grid.path(&robot, &key) else {
+                    continue;
+                };
+                if required_keys
+                    .difference(&held_keys)
+                    .collect::<Vec<_>>()
+                    .len()
+                    == 0
+                {
+                    let mut missing_keys = missing_keys.clone();
+                    let mut held_keys = held_keys.clone();
+                    let mut seq = seq.clone();
+                    let mut robots = robots.clone();
 
-                match seen.get_mut(&(robot, sorted_keys.clone())) {
-                    Some(val) => {
-                        if next_cost < *val {
-                            visit.insert((next_cost, key.pos, seq), (missing_keys, held_keys));
-                            seen.insert((robot, sorted_keys), next_cost);
+                    missing_keys.remove(&key);
+                    held_keys.insert(key.clone());
+                    seq.push(key.id);
+                    let mut sorted_keys = seq.chars().collect::<Vec<char>>();
+                    sorted_keys.sort();
+                    let sorted_keys = String::from_iter(sorted_keys);
+                    let next_cost = cost + added_cost;
+                    robots[i] = key.pos;
+
+                    match seen.get_mut(&(robots.clone(), sorted_keys.clone())) {
+                        Some(val) => {
+                            if next_cost < *val {
+                                visit.insert(
+                                    (next_cost, robots.clone(), seq),
+                                    (missing_keys, held_keys),
+                                );
+                                seen.insert((robots, sorted_keys), next_cost);
+                            }
                         }
-                    }
-                    None => {
-                        visit.insert((next_cost, key.pos, seq), (missing_keys, held_keys));
-                        seen.insert((robot, sorted_keys), next_cost);
+                        None => {
+                            visit.insert(
+                                (next_cost, robots.clone(), seq),
+                                (missing_keys, held_keys),
+                            );
+                            seen.insert((robots, sorted_keys), next_cost);
+                        }
                     }
                 }
             }
