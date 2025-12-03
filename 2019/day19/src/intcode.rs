@@ -275,6 +275,7 @@ impl Input for Receiver<i64> {
 
 pub struct Program<'a, 'b, In: Input, Out: Output> {
     inner: Vec<i64>,
+    ro_init: Vec<i64>,
     pc: usize,
     rb: usize,
     input: &'a mut In,
@@ -287,12 +288,19 @@ impl<'a, 'b, In: Input + Debug, Out: Output + Debug> Program<'a, 'b, In, Out> {
         let mut inner = vec![0; 2 << 20];
         inner[..p.len()].clone_from_slice(&p);
         Self {
+            ro_init: inner.clone(),
             inner,
             pc: 0,
             rb: 0,
             input,
             output,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.pc = 0;
+        self.rb = 0;
+        self.inner = self.ro_init.clone();
     }
 
     pub fn execute(&mut self) {
