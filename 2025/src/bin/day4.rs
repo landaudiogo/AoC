@@ -1,8 +1,11 @@
 use anyhow::Result;
-use std::io::Stdin;
+use std::{
+    collections::{BTreeSet, HashSet},
+    io::Stdin,
+};
 
 fn main() {
-    p1(std::io::stdin());
+    solve(std::io::stdin());
 }
 
 const CARDINALS: [(i64, i64); 8] = [
@@ -20,23 +23,25 @@ type Position = (usize, usize);
 type Cardinal = (i64, i64);
 
 enum Cell {
-    Roll,
+    Roll(u64),
     Empty,
 }
 
 struct Grid {
     inner: Vec<Vec<Cell>>,
+    removable: BTreeSet<Position>,
 }
 
 impl Grid {
     fn new(input: Stdin) -> Self {
+        let mut removable = BTreeSet::new();
         let mut grid = Vec::new();
         for line in input.lines() {
             let mut row = Vec::new();
             for c in line.unwrap().trim().chars() {
                 let cell = match c {
                     '.' => Cell::Empty,
-                    '@' => Cell::Roll,
+                    '@' => Cell::Roll(0),
                     c => panic!("invalid input char {c}"),
                 };
                 row.push(cell);
@@ -46,25 +51,45 @@ impl Grid {
             }
             grid.push(row);
         }
-        Self { inner: grid }
+
+        for r in 0..grid.len() {
+            for c in 0..grid[0].len() {
+                if let Cell::Empty = grid[r][c] {
+                    continue;
+                }
+                let surrounding_rolls = Self::count_surrounding_rolls(&grid, &(r, c));
+                grid[r][c] = Cell::Roll(surrounding_rolls);
+                if surrounding_rolls < 4 {
+                    removable.insert((r, c));
+                }
+            }
+        }
+        Self {
+            inner: grid,
+            removable,
+        }
     }
 
-    fn count_surrounding_rolls(&self, pos: &Position) -> u64 {
+    fn count_surrounding_rolls(grid: &Vec<Vec<Cell>>, pos: &Position) -> u64 {
         let mut rolls = 0;
         for cardinal in CARDINALS {
-            let Some(pos) = self.move_position(pos, cardinal) else {
+            let Some(pos) = Self::move_position(grid, pos, cardinal) else {
                 continue;
             };
-            if let Cell::Roll = self.inner[pos.0][pos.1] {
+            if let Cell::Roll(_) = grid[pos.0][pos.1] {
                 rolls += 1;
             }
         }
         rolls
     }
 
-    fn move_position(&self, pos: &Position, cardinal: Cardinal) -> Option<Position> {
+    fn move_position(
+        grid: &Vec<Vec<Cell>>,
+        pos: &Position,
+        cardinal: Cardinal,
+    ) -> Option<Position> {
         let res = (pos.0 as i64 + cardinal.0, pos.1 as i64 + cardinal.1);
-        let (nrows, ncols) = (self.inner.len() as i64, self.inner[0].len() as i64);
+        let (nrows, ncols) = (grid.len() as i64, grid.len() as i64);
         if res.0 < 0 || res.0 >= nrows {
             None
         } else if res.1 < 0 || res.1 >= ncols {
@@ -73,23 +98,37 @@ impl Grid {
             Some((res.0 as usize, res.1 as usize))
         }
     }
+
+    fn remove_all(&mut self) -> u64 {
+        let mut removed = 0;
+        while let Some(pos) = self.removable.pop_first() {
+            removed += 1;
+            self.inner[pos.0][pos.1] = Cell::Empty;
+            for cardinal in CARDINALS {
+                let Some(neigh) = Self::move_position(&self.inner, &pos, cardinal) else {
+                    continue;
+                };
+
+                if let Cell::Roll(cnt) = &mut self.inner[neigh.0][neigh.1] {
+                    // println!(
+                    //     "({}, {}) || ({}, {}) -> {cnt}",
+                    //     pos.0, pos.1, neigh.0, neigh.1
+                    // );
+                    *cnt -= 1;
+                    if *cnt < 4 {
+                        self.removable.insert(neigh);
+                    }
+                }
+            }
+        }
+        removed
+    }
 }
 
-fn p1(input: Stdin) -> Result<()> {
+fn solve(input: Stdin) -> Result<()> {
     let mut total = 0;
-    let grid = Grid::new(input);
-    for r in 0..grid.inner.len() {
-        for c in 0..grid.inner[0].len() {
-            if let Cell::Empty = grid.inner[r][c] {
-                continue;
-            }
-            total += if grid.count_surrounding_rolls(&(r, c)) < 4 {
-                1
-            } else {
-                0
-            };
-        }
-    }
-    println!("p1: {total}");
+    let mut grid = Grid::new(input);
+    println!("p1: {}", grid.removable.len());
+    println!("p2: {}", grid.remove_all());
     Ok(())
 }
