@@ -1,15 +1,22 @@
-use std::{collections::BTreeMap, io};
+use std::{
+    collections::BTreeMap,
+    io::{self, BufRead, Read},
+};
 
 use anyhow::Result;
 
 fn main() {
-    p1();
+    let mut input = String::new();
+    io::stdin().read_to_string(&mut input);
+
+    solve(&input);
 }
 
-fn p1() -> Result<()> {
+fn solve(input: &str) -> Result<()> {
     let mut fresh_ingredients: BTreeMap<u64, u64> = BTreeMap::new();
-    for line in io::stdin().lines() {
-        let line = line?;
+    let mut lines = input.lines();
+
+    while let Some(line) = lines.next() {
         let range = line.trim();
         if line.len() == 0 {
             break;
@@ -48,20 +55,25 @@ fn p1() -> Result<()> {
         fresh_ingredients.insert(start, end);
     }
 
-    let mut total = 0;
-    for line in io::stdin().lines() {
-        let line = line?;
+    let mut p1 = 0;
+    for line in lines {
         let ingredient: u64 = line.trim().parse().unwrap();
         match fresh_ingredients.range(..=ingredient).last() {
             None => {}
             Some((start, end)) => {
                 if *end >= ingredient {
-                    total += 1;
+                    p1 += 1;
                 }
             }
         }
     }
-    println!("p1: {total}");
+    println!("p1: {p1}");
+
+    let mut p2 = 0;
+    for (start, end) in fresh_ingredients {
+        p2 += (end - start) + 1;
+    }
+    println!("p2: {p2}");
 
     Ok(())
 }
