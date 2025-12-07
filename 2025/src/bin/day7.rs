@@ -25,7 +25,8 @@ fn main() {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input);
     p1(&input);
-    p2(&input);
+    p2_1(&input);
+    p2_2(&input);
 }
 
 fn p1(input: &str) {
@@ -59,7 +60,7 @@ fn p1(input: &str) {
     println!("p1: {splits}");
 }
 
-fn p2(input: &str) {
+fn p2_1(input: &str) {
     let mut grid: Vec<Vec<Cell>> = Vec::new();
     for line in input.lines() {
         let mut row = Vec::new();
@@ -109,5 +110,65 @@ fn p2(input: &str) {
             acc
         }
     });
-    println!("p2: {timelines}");
+    println!("p2.1: {timelines}");
+}
+
+fn p2_2(input: &str) {
+    let mut grid: Vec<Vec<Cell>> = Vec::new();
+    for line in input.lines() {
+        let mut row = Vec::new();
+        for c in line.chars() {
+            row.push(Cell::from(c));
+        }
+        grid.push(row);
+    }
+
+    let mut total_timelines = 0;
+    let mut timelines: HashMap<(usize, usize), u64> = HashMap::new();
+    let mut visit = VecDeque::new();
+    let (start, _) = grid[0]
+        .iter()
+        .enumerate()
+        .find(|(i, c)| if let Cell::Beam(_) = c { true } else { false })
+        .unwrap();
+    visit.push_back((1, start));
+
+    while let Some((r, c)) = visit.pop_back() {
+        if r + 1 == grid.len() {
+            timelines.insert((r, c), 1);
+            continue;
+        }
+
+        if timelines.get(&(r, c)).is_some() {
+            continue;
+        }
+
+        let next = grid[r + 1][c];
+
+        if let Cell::Empty = next {
+            let down = timelines.get(&(r + 1, c));
+            if let Some(down) = down {
+                timelines.insert((r, c), *down);
+            } else {
+                visit.push_back((r, c));
+                visit.push_back((r + 1, c));
+            }
+            visit.push_back((r + 1, c));
+        } else if let Cell::Splitter = next {
+            let (left, right) = (
+                timelines.get(&(r + 1, c - 1)),
+                timelines.get(&(r + 1, c + 1)),
+            );
+
+            if let (Some(left), Some(right)) = (left, right) {
+                timelines.insert((r, c), left + right);
+            } else {
+                visit.push_back((r, c));
+                visit.push_back((r + 1, c + 1));
+                visit.push_back((r + 1, c - 1));
+            }
+        }
+    }
+
+    println!("p2.2: {:?}", timelines.get(&(1, start)).unwrap());
 }
