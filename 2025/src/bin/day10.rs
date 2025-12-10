@@ -1,11 +1,11 @@
 use std::{
-    collections::{BTreeSet, VecDeque},
+    collections::BTreeSet,
     io::{self, Read},
 };
 
 fn main() {
     let mut input = String::new();
-    io::stdin().read_to_string(&mut input);
+    io::stdin().read_to_string(&mut input).unwrap();
     p1(&input);
 }
 
@@ -39,7 +39,6 @@ fn p1(input: &str) {
             }
         }
 
-        let state: u16 = 0;
         let mut visit: BTreeSet<(u64, State)> = BTreeSet::new();
         visit.insert((0, 0));
         while let Some((cnt, state)) = visit.pop_first() {
@@ -49,12 +48,6 @@ fn p1(input: &str) {
             }
 
             for button in buttons.iter() {
-                let missing = state ^ desired;
-                if (button & missing) == 0 {
-                    continue;
-                }
-                // let mut history = history.clone();
-                // history.push(*button);
                 visit.insert((cnt + 1, state ^ button));
             }
         }

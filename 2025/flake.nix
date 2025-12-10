@@ -15,6 +15,12 @@
                         rustc
                         rustfmt
                         rust-analyzer 
+                    ] ++ [
+                        (pkgs.python3.withPackages (python-pkgs: with python-pkgs; [
+                            numpy
+                            cvxpy
+                            ecos
+                        ]))
                     ];
                 };
             };
