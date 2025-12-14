@@ -40,10 +40,11 @@ type Grid = Vec<Vec<Cell>>;
 struct Present {
     id: usize,
     arrangements: HashSet<Arrangement>,
+    arrangements_for_grid: HashMap<Grid, Vec<Arrangement>>,
 }
 
 impl Present {
-    fn new(id: usize, mut init: Arrangement) -> Self {
+    fn new(id: usize, init: Arrangement) -> Self {
         let mut arrangements = HashSet::new();
         for mut shape in [
             flip_ns(&init),
@@ -58,7 +59,28 @@ impl Present {
             }
         }
 
-        Self { id, arrangements }
+        Self {
+            id,
+            arrangements,
+            arrangements_for_grid: HashMap::new(),
+        }
+    }
+
+    fn fitting_arrangments(&mut self, grid: &Grid) -> Vec<Arrangement> {
+        if let Some(arrangements) = self.arrangements_for_grid.get(grid) {
+            return arrangements.clone();
+        }
+
+        let mut fitting_arrangements = Vec::new();
+        for arrangement in self.arrangements.iter() {
+            if arrangement_fits(grid, arrangement) {
+                fitting_arrangements.push(arrangement.clone());
+            }
+        }
+
+        self.arrangements_for_grid
+            .insert(grid.clone(), fitting_arrangements.clone());
+        return fitting_arrangements;
     }
 }
 
@@ -187,7 +209,7 @@ fn p1(input: &[u8]) {
         let Some(x_idx) = line.find("x") else { break };
         let nrows: usize = line[0..x_idx].parse().unwrap();
         let Some(colon_idx) = line.find(":") else {
-            panic!("colon is expected: `{line}`")
+            panic!("colon is expected: `{line}`");
         };
         let ncols: usize = line[(x_idx + 1)..colon_idx].parse().unwrap();
 
@@ -211,7 +233,10 @@ fn p1(input: &[u8]) {
             grid.push(row);
         }
 
-        println!("{:?}", find_layout(grid, missing_presents, &presents));
+        println!(
+            "{:?}",
+            find_layout(grid, missing_presents, &mut presents, 0)
+        );
         line.clear();
         buf_reader.read_line(&mut line);
     }
@@ -219,11 +244,11 @@ fn p1(input: &[u8]) {
 
 type Position = (usize, usize);
 
-fn arrangement_fits(grid: &Grid, pos: &Position, arrangement: &Arrangement) -> bool {
+fn arrangement_fits(grid: &Grid, arrangement: &Arrangement) -> bool {
     let mut fits = true;
     for i in 0..arrangement.len() {
         for j in 0..arrangement[0].len() {
-            if arrangement[i][j] == Cell::Some && grid[pos.0 + i][pos.1 + j] == Cell::Some {
+            if arrangement[i][j] == Cell::Some && grid[i][j] == Cell::Some {
                 fits = false
             }
 
@@ -251,19 +276,32 @@ fn fill_grid(grid: &mut Grid, pos: &Position, arrangement: &Arrangement) {
 
 // if there is any arrangement where a present fits, the return true
 // if no arrangement fits return false
-fn present_fits(grid: &Grid, pos: &Position, present: &Present) -> bool {
-    for arrangement in present.arrangements.iter() {
-        if arrangement_fits(grid, pos, arrangement) {
-            return true;
+// fn present_fits(grid: &Grid, pos: &Position, present: &Present) -> bool {
+//     for arrangement in present.arrangements.iter() {
+//         if arrangement_fits(grid, pos, arrangement) {
+//             return true;
+//         }
+//     }
+//     return false;
+// }
+
+fn sub_grid(grid: &Grid, (i, j): &(usize, usize)) -> Grid {
+    let mut sub_grid = Vec::with_capacity(3);
+    for i in *i..(*i + 3) {
+        let mut row = Vec::with_capacity(3);
+        for j in *j..(*j + 3) {
+            row.push(grid[i][j]);
         }
+        sub_grid.push(row);
     }
-    return false;
+    return sub_grid;
 }
 
 fn find_layout(
     grid: Grid,
     missing_presents: HashMap<usize, u64>,
-    presents: &HashMap<usize, Present>,
+    presents: &mut HashMap<usize, Present>,
+    depth: u64,
 ) -> bool {
     if missing_presents.len() == 0 {
         for row in grid {
@@ -276,12 +314,17 @@ fn find_layout(
     }
 
     for (pid, _) in missing_presents.iter() {
-        let present = presents.get(pid).unwrap();
+        let present = presents.get_mut(pid).unwrap();
         let mut fits = false;
         for i in 0..=(grid.len() - 3) {
             for j in 0..=(grid[0].len() - 3) {
+                if let Cell::Some = grid[i][j] {
+                    continue;
+                }
+
                 let pos = (i, j);
-                fits = present_fits(&grid, &pos, present);
+                let sub_grid = sub_grid(&grid, &pos);
+                fits = !present.fitting_arrangments(&sub_grid).is_empty();
                 if fits {
                     break;
                 }
@@ -291,38 +334,38 @@ fn find_layout(
             }
         }
         if !fits {
+            // println!("Early break");
             return false;
         }
     }
 
     for (pid, _) in missing_presents.iter() {
         let mut missing_presents = missing_presents.clone();
-        let mut cnt = missing_presents.get_mut(pid).unwrap();
+        let cnt = missing_presents.get_mut(pid).unwrap();
         *cnt -= 1;
         if *cnt == 0 {
             missing_presents.remove(pid);
         }
 
-        let present = presents.get(pid).unwrap();
-        for arrangement in present.arrangements.iter() {
-            for i in 0..=(grid.len() - 3) {
-                for j in 0..=(grid[0].len() - 3) {
-                    if let Cell::Some = grid[i][j] {
-                        continue;
-                    }
+        for i in 0..=(grid.len() - 3) {
+            for j in 0..=(grid[0].len() - 3) {
+                if let Cell::Some = grid[i][j] {
+                    continue;
+                }
 
-                    let pos = (i, j);
-                    if !arrangement_fits(&grid, &pos, arrangement) {
-                        continue;
-                    }
-
+                let pos = (i, j);
+                let sub_grid = sub_grid(&grid, &pos);
+                let present = presents.get_mut(pid).unwrap();
+                let fitting_arrangements = present.fitting_arrangments(&sub_grid);
+                for arrangement in fitting_arrangements {
                     let mut grid = grid.clone();
                     // print_grid(&grid);
                     // println!("******");
-                    fill_grid(&mut grid, &pos, arrangement);
+                    fill_grid(&mut grid, &pos, &arrangement);
                     // print_grid(&grid);
                     // println!("******\n");
-                    if find_layout(grid, missing_presents.clone(), presents) {
+                    println!("{depth} {pos:?}");
+                    if find_layout(grid, missing_presents.clone(), presents, depth + 1) {
                         return true;
                     }
                 }
