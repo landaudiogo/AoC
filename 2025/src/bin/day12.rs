@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io::{self, BufRead, BufReader, Read},
 };
 
@@ -35,13 +35,15 @@ enum Cell {
 }
 
 type Arrangement = Vec<Vec<Cell>>;
+type Grid = Vec<Vec<Cell>>;
+
 struct Present {
-    id: u64,
+    id: usize,
     arrangements: HashSet<Arrangement>,
 }
 
 impl Present {
-    fn new(id: u64, mut init: Arrangement) -> Self {
+    fn new(id: usize, mut init: Arrangement) -> Self {
         let mut arrangements = HashSet::new();
         for mut shape in [
             flip_ns(&init),
@@ -62,6 +64,15 @@ impl Present {
 
 fn print_arrangement(arr: &Arrangement) {
     for row in arr {
+        for c in row {
+            print!("{}", char::from(c))
+        }
+        print!("\n");
+    }
+}
+
+fn print_grid(grid: &Grid) {
+    for row in grid {
         for c in row {
             print!("{}", char::from(c))
         }
@@ -143,6 +154,7 @@ fn rotate90(arr: &Arrangement) -> Arrangement {
 fn p1(input: &[u8]) {
     let mut buf_reader = BufReader::new(input);
     let mut line = String::new();
+    let mut presents: HashMap<usize, Present> = HashMap::new();
     while let Ok(len) = buf_reader.read_line(&mut line) {
         if len == 0 {
             break;
@@ -152,7 +164,7 @@ fn p1(input: &[u8]) {
             panic!("id should contain colon")
         };
 
-        let Ok(id): Result<u64, _> = line[..colon_idx].parse() else {
+        let Ok(id): Result<_, _> = line[..colon_idx].parse() else {
             break;
         };
 
@@ -166,8 +178,157 @@ fn p1(input: &[u8]) {
             line.clear();
         }
 
-        let present = Present::new(id, init);
+        presents.insert(id, Present::new(id, init));
 
         line.clear();
     }
+
+    loop {
+        let Some(x_idx) = line.find("x") else { break };
+        let nrows: usize = line[0..x_idx].parse().unwrap();
+        let Some(colon_idx) = line.find(":") else {
+            panic!("colon is expected: `{line}`")
+        };
+        let ncols: usize = line[(x_idx + 1)..colon_idx].parse().unwrap();
+
+        let mut missing_presents: HashMap<usize, u64> = HashMap::new();
+        let remainder = &line[colon_idx + 2..];
+        for (pid, npresents) in remainder.split_whitespace().enumerate() {
+            let npresents = npresents.parse().unwrap();
+            if npresents == 0 {
+                continue;
+            }
+
+            missing_presents.insert(pid, npresents);
+        }
+
+        let mut grid = Vec::with_capacity(nrows);
+        for _ in 0..nrows {
+            let mut row = Vec::with_capacity(ncols);
+            for _ in 0..ncols {
+                row.push(Cell::None);
+            }
+            grid.push(row);
+        }
+
+        println!("{:?}", find_layout(grid, missing_presents, &presents));
+        line.clear();
+        buf_reader.read_line(&mut line);
+    }
+}
+
+type Position = (usize, usize);
+
+fn arrangement_fits(grid: &Grid, pos: &Position, arrangement: &Arrangement) -> bool {
+    let mut fits = true;
+    for i in 0..arrangement.len() {
+        for j in 0..arrangement[0].len() {
+            if arrangement[i][j] == Cell::Some && grid[pos.0 + i][pos.1 + j] == Cell::Some {
+                fits = false
+            }
+
+            if !fits {
+                break;
+            }
+        }
+        if !fits {
+            break;
+        }
+    }
+    fits
+}
+
+fn fill_grid(grid: &mut Grid, pos: &Position, arrangement: &Arrangement) {
+    for i in 0..3 {
+        for j in 0..3 {
+            if let Cell::None = arrangement[i][j] {
+                continue;
+            }
+            grid[pos.0 + i][pos.1 + j] = arrangement[i][j];
+        }
+    }
+}
+
+// if there is any arrangement where a present fits, the return true
+// if no arrangement fits return false
+fn present_fits(grid: &Grid, pos: &Position, present: &Present) -> bool {
+    for arrangement in present.arrangements.iter() {
+        if arrangement_fits(grid, pos, arrangement) {
+            return true;
+        }
+    }
+    return false;
+}
+
+fn find_layout(
+    grid: Grid,
+    missing_presents: HashMap<usize, u64>,
+    presents: &HashMap<usize, Present>,
+) -> bool {
+    if missing_presents.len() == 0 {
+        for row in grid {
+            for cell in row {
+                print!("{}", char::from(&cell));
+            }
+            print!("\n");
+        }
+        return true;
+    }
+
+    for (pid, _) in missing_presents.iter() {
+        let present = presents.get(pid).unwrap();
+        let mut fits = false;
+        for i in 0..=(grid.len() - 3) {
+            for j in 0..=(grid[0].len() - 3) {
+                let pos = (i, j);
+                fits = present_fits(&grid, &pos, present);
+                if fits {
+                    break;
+                }
+            }
+            if fits {
+                break;
+            }
+        }
+        if !fits {
+            return false;
+        }
+    }
+
+    for (pid, _) in missing_presents.iter() {
+        let mut missing_presents = missing_presents.clone();
+        let mut cnt = missing_presents.get_mut(pid).unwrap();
+        *cnt -= 1;
+        if *cnt == 0 {
+            missing_presents.remove(pid);
+        }
+
+        let present = presents.get(pid).unwrap();
+        for arrangement in present.arrangements.iter() {
+            for i in 0..=(grid.len() - 3) {
+                for j in 0..=(grid[0].len() - 3) {
+                    if let Cell::Some = grid[i][j] {
+                        continue;
+                    }
+
+                    let pos = (i, j);
+                    if !arrangement_fits(&grid, &pos, arrangement) {
+                        continue;
+                    }
+
+                    let mut grid = grid.clone();
+                    // print_grid(&grid);
+                    // println!("******");
+                    fill_grid(&mut grid, &pos, arrangement);
+                    // print_grid(&grid);
+                    // println!("******\n");
+                    if find_layout(grid, missing_presents.clone(), presents) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    return false;
 }
