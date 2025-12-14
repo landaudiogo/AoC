@@ -15,6 +15,8 @@
                         rustc
                         rustfmt
                         rust-analyzer 
+                        linuxKernel.packages.linux_zen.perf
+                        cargo-flamegraph
                     ] ++ [
                         (pkgs.python3.withPackages (python-pkgs: with python-pkgs; [
                             numpy

@@ -205,6 +205,7 @@ fn p1(input: &[u8]) {
         line.clear();
     }
 
+    let mut total = 0;
     loop {
         let Some(x_idx) = line.find("x") else { break };
         let nrows: usize = line[0..x_idx].parse().unwrap();
@@ -213,7 +214,7 @@ fn p1(input: &[u8]) {
         };
         let ncols: usize = line[(x_idx + 1)..colon_idx].parse().unwrap();
 
-        let mut missing_presents: HashMap<usize, u64> = HashMap::new();
+        let mut missing_presents: Vec<usize> = Vec::new();
         let remainder = &line[colon_idx + 2..];
         for (pid, npresents) in remainder.split_whitespace().enumerate() {
             let npresents = npresents.parse().unwrap();
@@ -221,25 +222,25 @@ fn p1(input: &[u8]) {
                 continue;
             }
 
-            missing_presents.insert(pid, npresents);
-        }
-
-        let mut grid = Vec::with_capacity(nrows);
-        for _ in 0..nrows {
-            let mut row = Vec::with_capacity(ncols);
-            for _ in 0..ncols {
-                row.push(Cell::None);
+            for _ in 0..npresents {
+                missing_presents.push(pid);
             }
-            grid.push(row);
         }
 
-        println!(
-            "{:?}",
-            find_layout(grid, missing_presents, &mut presents, 0)
-        );
+        total += if missing_presents.len() * 9 <= ncols * nrows {
+            1
+        } else {
+            0
+        };
+
+        // println!(
+        //     "{:?}",
+        //     find_layout(grid, missing_presents, &mut presents, 0)
+        // );
         line.clear();
         buf_reader.read_line(&mut line);
     }
+    println!("p1: {total}");
 }
 
 type Position = (usize, usize);
@@ -273,17 +274,6 @@ fn fill_grid(grid: &mut Grid, pos: &Position, arrangement: &Arrangement) {
         }
     }
 }
-
-// if there is any arrangement where a present fits, the return true
-// if no arrangement fits return false
-// fn present_fits(grid: &Grid, pos: &Position, present: &Present) -> bool {
-//     for arrangement in present.arrangements.iter() {
-//         if arrangement_fits(grid, pos, arrangement) {
-//             return true;
-//         }
-//     }
-//     return false;
-// }
 
 fn sub_grid(grid: &Grid, (i, j): &(usize, usize)) -> Grid {
     let mut sub_grid = Vec::with_capacity(3);
